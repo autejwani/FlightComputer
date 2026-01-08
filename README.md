@@ -46,7 +46,7 @@ The current implementation focuses on:
 ```
 ## Folder Descriptions
 
-### **Controls/**
+### **Controls**
 Contains control and estimation algorithms.
 
 - **`ekf.cpp / ekf.h`**  
@@ -55,7 +55,7 @@ Contains control and estimation algorithms.
 
 ---
 
-### **Sensing/**
+### **Sensing**
 Contains low-level sensor drivers, each split into a header and implementation file.
 
 - **IMU (`imu.cpp / imu.h`)**  
@@ -68,7 +68,7 @@ All sensors are configured and read at the **register level**, without relying o
 
 ---
 
-### **Utilities/**
+### **Utilities**
 Contains reusable hardware communication helpers.
 
 - **I2C (`i2c.cpp / i2c.h`)**  
@@ -77,20 +77,79 @@ Contains reusable hardware communication helpers.
 
 ---
 
-### **LoRa/**
-Contains long-range wireless communication code used for telemetry.
+## **LoRa**
+Contains long-range wireless communication code used for flight telemetry and ground station reception.
 
-- **`transmitter.cpp`**  
-  Packages and transmits flight telemetry (altitude, state estimates, sensor data) over LoRa.
-
-- **`receiver.cpp`**  
-  Receives and decodes telemetry packets on the ground station side.
-
-The LoRa implementation is designed to be **lightweight, reliable, and expandable** for bidirectional communication.
+The LoRa subsystem is designed to transmit **compact, fixed-length binary packets** for reliability, low latency, and ease of parsing on resource-constrained hardware.
 
 ---
 
-### **Design/**
+### **Telemetry Packet Format**
+
+Each LoRa transmission consists of a **fixed 11-byte packet** with the following structure:
+
+| Byte Index | Field       | Size (bytes) | Type      | Description |
+|-----------:|-------------|--------------|-----------|-------------|
+| 0          | Packet ID   | 1            | `uint8_t` | Reserved for packet type / sync|
+| 1–4        | Timestamp   | 4            | `uint32_t`| System timestamp in **milliseconds** |
+| 5–6        | Temperature | 2            | `int16_t` | Temperature in **°C × 100** (fixed-point) |
+| 7–10       | Pressure    | 4            | `int32_t` | Pressure in **Pascals (Pa)** |
+
+**Total packet size:** `11 bytes`
+
+---
+
+### **Encoding Details**
+
+- **Timestamp**
+  - Big-endian format
+  - Represents system uptime in milliseconds
+  - Used for packet ordering and time correlation
+
+- **Temperature**
+  - Signed 16-bit fixed-point value  
+  - Conversion:  
+    ```
+    temperature (°C) = int16_value / 100.0
+    ```
+  - Example: `2534 → 25.34 °C`
+
+- **Pressure**
+  - Signed 32-bit integer
+  - Units: **Pascals (Pa)**
+  - Intended for altitude calculation and EKF validation on the ground station
+
+---
+
+### **`transmitter.cpp`**
+Packages sensor telemetry into the fixed 11-byte binary packet and transmits it over LoRa at **915 MHz**.
+
+Responsibilities include:
+- Packing sensor values into fixed-point binary fields
+- Enforcing a fixed packet length
+- Periodic telemetry transmission during flight
+
+The packet structure is intentionally minimal to:
+- Reduce airtime
+- Improve link reliability
+- Avoid dynamic memory allocation
+
+---
+
+### **`receiver.cpp`**
+Receives and validates incoming LoRa packets on the ground station.
+
+Responsibilities include:
+- Verifying packet length (`11 bytes`)
+- Parsing binary fields into native types
+- Converting fixed-point values to floating-point
+- Displaying telemetry via **Serial** and **OLED**
+
+Packets with unexpected lengths are discarded to ensure data integrity.
+
+---
+
+### **Design**
 Contains the hardware design files for the flight computer PCB.
 
 This includes:
