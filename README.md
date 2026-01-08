@@ -21,7 +21,7 @@ The current implementation focuses on:
 ## Project Structure
 
 ```text
-src/
+
 ├── Controls/
 │   ├── ekf.cpp
 │   └── ekf.h
